@@ -1,0 +1,66 @@
+#!/bin/bash
+
+autoScanFile() {
+    url='http://localhost:8000/api/v1/scan'
+    read -p "Enter scan type (apk/ipa): " scan_type
+    file_path=$1
+    file_name=$(basename "$file_path")
+
+    api_key='<Your API KEY>’'
+    headers="Authorization: $api_key"
+
+    hash=$(md5sum "$file_path" | awk '{print $1}')
+
+    response=$(curl -s -X POST -H "$headers" -F "file=@$file_path" -F "scan_type=$scan_type" -F "file_name=$file_name" -F "hash=$hash" "$url")
+    if [ $? -eq 0 ]; then
+        critical_issues=0
+        warning=0
+
+        critical_issues=$(echo "$response" | jq -r '.permissions | with_entries(select(.value == "dangerous")) | length')
+        warning=$(echo "$response" | jq -r '.permissions | with_entries(select(.value == "warning")) | length')
+
+        echo "$critical_issues dangerous warnings in permissions analysis"
+        echo "================="
+        echo "$warning warnings in permissions analysis"
+        echo "-----------------"
+
+        warning=$(echo "$response" | jq -r '.certificate_analysis.warning')
+        high_warnings=$(echo "$response" | jq -r '.certificate_analysis.high')
+
+        echo "$warning warnings in certificate analysis"
+        echo "-----------------"
+        echo "$high_warnings high/critical warnings in certificate analysis"
+        echo "================="
+
+        warning=$(echo "$response" | jq -r '.manifest_analysis.warning')
+        high_warnings=$(echo "$response" | jq -r '.manifest_analysis.high')
+
+        echo "$warning warnings in manifest analysis"
+        echo "-----------------"
+        echo "$high_warnings high/critical warnings in manifest analysis"
+        echo "================="
+
+        warning=$(echo "$response" | jq -r '.code_analysis.warning')
+        high_warnings=$(echo "$response" | jq -r '.code_analysis.high')
+
+        echo "$warning warnings in code analysis"
+        echo "-----------------"
+        echo "$high_warnings high/critical warnings in code analysis"
+        echo "================="
+
+    else
+        echo "Error Response: $response"
+    fi
+}
+
+if [ $# -lt 1 ]; then
+    echo "You need to pass the file name/file path as an argument"
+else
+    for file in "$@"; do
+        autoScanFile "$file"
+        echo "File: $file"
+        echo "+++++++++++++++++++++++++++++++++++++"
+    done
+fi
+
+
